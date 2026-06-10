@@ -59,6 +59,52 @@
             </div>
         </section>
 
+        <section class="panel-section" aria-labelledby="colorCustomizationTitle">
+            <h2 class="section-title" id="colorCustomizationTitle">Personalización de Colores</h2>
+
+            <div class="color-pickers-group">
+                <div class="color-picker-item">
+                    <label for="positiveColorInput">Cresta (Máximo)</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="positiveColorInput" value="#ff2200">
+                        <span class="color-preview" id="positiveColorPreview"></span>
+                    </div>
+                </div>
+                <div class="color-picker-item">
+                    <label for="negativeColorInput">Valle (Mínimo)</label>
+                    <div class="color-picker-container">
+                        <input type="color" id="negativeColorInput" value="#0044ff">
+                        <span class="color-preview" id="negativeColorPreview"></span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Saturación</span>
+                    <span id="saturationValue">100%</span>
+                </div>
+                <input type="range" id="saturationSlider" min="0" max="100" step="1" value="100">
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Opacidad</span>
+                    <span id="opacityValue">85%</span>
+                </div>
+                <input type="range" id="opacitySlider" min="0" max="100" step="1" value="85">
+            </div>
+
+            <div class="presets-group">
+                <button class="preset-btn" id="presetFire" type="button" title="Fuego">🔥</button>
+                <button class="preset-btn" id="presetOcean" type="button" title="Océano">🌊</button>
+                <button class="preset-btn" id="presetNeon" type="button" title="Neon">✨</button>
+                <button class="preset-btn" id="presetClassic" type="button" title="Clásico">◉</button>
+            </div>
+
+            <button id="resetColorsBtn" type="button" class="reset-colors-btn">Reset Colores</button>
+        </section>
+
         <section class="panel-section" aria-labelledby="cameraStateTitle">
             <h2 class="section-title" id="cameraStateTitle">Cámara y Estado</h2>
             <div class="camera-grid">

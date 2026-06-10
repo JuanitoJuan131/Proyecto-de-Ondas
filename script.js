@@ -11,6 +11,18 @@ let lastTimePoint = Date.now();
 let raycaster, mouse;
 let tooltipElement;
 
+let colorPositive = new THREE.Color(0xff2200);
+let colorNegative = new THREE.Color(0x0044ff);
+let colorNeutral = new THREE.Color(0x00ffff);
+let saturation = 1.0;
+let opacityLevel = 0.85;
+
+const defaultColors = {
+    positive: new THREE.Color(0xff2200),
+    negative: new THREE.Color(0x0044ff),
+    neutral: new THREE.Color(0x00ffff)
+};
+
 const colorRed = new THREE.Color(0xff2200);
 const colorBlue = new THREE.Color(0x0044ff);
 const colorCyan = new THREE.Color(0x00ffff);
@@ -64,6 +76,21 @@ function initControls() {
     controls.maxDistance = 100;
 }
 
+function applySaturation(color, sat) {
+    const hsl = {};
+    color.getHSL(hsl);
+    hsl.s = Math.min(1, hsl.s * sat);
+    color.setHSL(hsl.h, hsl.s, hsl.l);
+    return color;
+}
+
+function updateColorPreview() {
+    const positiveInput = document.getElementById('positiveColorInput');
+    const negativeInput = document.getElementById('negativeColorInput');
+    document.getElementById('positiveColorPreview').style.backgroundColor = positiveInput.value;
+    document.getElementById('negativeColorPreview').style.backgroundColor = negativeInput.value;
+}
+
 function createWaveGrid(N) {
     if (wavePoints) {
         scene.remove(wavePoints);
@@ -102,7 +129,7 @@ function createWaveGrid(N) {
         vertexColors: true,
         sizeAttenuation: true,
         transparent: true,
-        opacity: 0.85
+        opacity: opacityLevel
     });
 
     wavePoints = new THREE.Points(waveGeometry, material);
@@ -134,10 +161,17 @@ function updateWave(time) {
 
             const normalizedY = Math.max(-1, Math.min(1, y / amplitude));
             let lerpColor;
+
+            const posColor = new THREE.Color(colorPositive);
+            const negColor = new THREE.Color(colorNegative);
+
+            applySaturation(posColor, saturation);
+            applySaturation(negColor, saturation);
+
             if (normalizedY > 0) {
-                lerpColor = new THREE.Color().lerpColors(colorCyan, colorRed, normalizedY);
+                lerpColor = new THREE.Color().lerpColors(colorNeutral, posColor, normalizedY);
             } else {
-                lerpColor = new THREE.Color().lerpColors(colorBlue, colorCyan, normalizedY + 1);
+                lerpColor = new THREE.Color().lerpColors(negColor, colorNeutral, normalizedY + 1);
             }
 
             colors[index * 3] = lerpColor.r;
@@ -242,6 +276,78 @@ function setupUI() {
         createWaveGrid(N);
     });
 
+    const positiveColorInput = document.getElementById('positiveColorInput');
+    const negativeColorInput = document.getElementById('negativeColorInput');
+    const saturationSlider = document.getElementById('saturationSlider');
+    const opacitySlider = document.getElementById('opacitySlider');
+    const resetColorsBtn = document.getElementById('resetColorsBtn');
+
+    positiveColorInput.addEventListener('input', (e) => {
+        colorPositive.setStyle(e.target.value);
+        updateColorPreview();
+    });
+
+    negativeColorInput.addEventListener('input', (e) => {
+        colorNegative.setStyle(e.target.value);
+        updateColorPreview();
+    });
+
+    saturationSlider.addEventListener('input', (e) => {
+        saturation = parseFloat(e.target.value) / 100;
+        document.getElementById('saturationValue').textContent = e.target.value + '%';
+    });
+
+    opacitySlider.addEventListener('input', (e) => {
+        opacityLevel = parseFloat(e.target.value) / 100;
+        document.getElementById('opacityValue').textContent = e.target.value + '%';
+        if (wavePoints && wavePoints.material) {
+            wavePoints.material.opacity = opacityLevel;
+        }
+    });
+
+    resetColorsBtn.addEventListener('click', () => {
+        colorPositive.copy(defaultColors.positive);
+        colorNegative.copy(defaultColors.negative);
+        colorNeutral.copy(defaultColors.neutral);
+        saturation = 1.0;
+        opacityLevel = 0.85;
+
+        positiveColorInput.value = '#ff2200';
+        negativeColorInput.value = '#0044ff';
+        saturationSlider.value = 100;
+        opacitySlider.value = 85;
+
+        document.getElementById('saturationValue').textContent = '100%';
+        document.getElementById('opacityValue').textContent = '85%';
+        updateColorPreview();
+
+        if (wavePoints && wavePoints.material) {
+            wavePoints.material.opacity = opacityLevel;
+        }
+
+        document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+    });
+
+    const presets = {
+        fire: { positive: '#ff0000', negative: '#0a1a4d', neutral: '#ff6600' },
+        ocean: { positive: '#00bfff', negative: '#003d66', neutral: '#00ff99' },
+        neon: { positive: '#ff00ff', negative: '#00ffff', neutral: '#ff00ff' },
+        classic: { positive: '#ff2200', negative: '#0044ff', neutral: '#00ffff' }
+    };
+
+    Object.entries(presets).forEach(([key, colors]) => {
+        document.getElementById(`preset${key.charAt(0).toUpperCase() + key.slice(1)}`).addEventListener('click', () => {
+            positiveColorInput.value = colors.positive;
+            negativeColorInput.value = colors.negative;
+            colorPositive.setStyle(colors.positive);
+            colorNegative.setStyle(colors.negative);
+            updateColorPreview();
+
+            document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        });
+    });
+
     camRotBtn.addEventListener('click', () => {
         controls.autoRotate = true;
         isMoving = true;
@@ -297,6 +403,8 @@ function setupUI() {
 
     const k = (2 * Math.PI) / wavelength;
     document.getElementById('kValue').textContent = k.toFixed(2) + " rad/m";
+
+    updateColorPreview();
 }
 
 function onWindowResize() {
