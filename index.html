@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WaveForge 3D - Simulador de Ondas EM</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="scene-vignette" aria-hidden="true"></div>
+
+    <div id="topStatus">
+        <span class="dot" id="statusDot"></span>
+        <span id="statusLabel">ROTANDO</span>
+    </div>
+
+    <button id="togglePanelBtn" type="button">Ocultar Panel</button>
+
+    <div id="waveTooltip"></div>
+
+    <main id="controlPanel" aria-label="Panel de control de la onda">
+        <header class="panel-header">
+            <p class="eyebrow">Simulador interactivo</p>
+            <h1>WaveForge 3D</h1>
+        </header>
+
+        <div class="equation">
+            E(x,t) = A·cos(kx - wt) y
+        </div>
+
+        <section class="panel-section" aria-labelledby="waveParametersTitle">
+            <h2 class="section-title" id="waveParametersTitle">Parámetros de Onda</h2>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Amplitud (A)</span>
+                    <span id="ampValue">0.8</span>
+                </div>
+                <input type="range" id="amplitudeSlider" min="0.1" max="2.0" step="0.1" value="0.8">
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Frecuencia (w)</span>
+                    <span id="freqValue">1.5</span>
+                </div>
+                <input type="range" id="frequencySlider" min="0.5" max="5.0" step="0.1" value="1.5">
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Resolución (N)</span>
+                    <span id="resValue">50</span>
+                </div>
+                <input type="range" id="resolutionSlider" min="20" max="80" step="1" value="50">
+            </div>
+        </section>
+
+        <section class="panel-section" aria-labelledby="cameraStateTitle">
+            <h2 class="section-title" id="cameraStateTitle">Cámara y Estado</h2>
+            <div class="camera-grid">
+                <button id="camRotBtn" class="cam-btn active" type="button">Rotar</button>
+                <button id="camEstBtn" class="cam-btn" type="button">Estático</button>
+            </div>
+        </section>
+
+        <section class="panel-section" aria-labelledby="systemMetricsTitle">
+            <h2 class="section-title" id="systemMetricsTitle">Métricas del Sistema</h2>
+            <div class="info-box-bar">
+                <div><span>k = 2pi/lambda</span> <span class="value" id="kValue">1.57 rad/m</span></div>
+                <div><span>lambda</span> <span class="value">4.0 m</span></div>
+                <div><span>N² (Puntos)</span> <span class="value" id="pointsValue">2,500 pts</span></div>
+                <div><span>Modo activo</span> <span class="value" id="currentModeLabel">MOVIMIENTO</span></div>
+            </div>
+        </section>
+
+        <button id="resetBtn" type="button">Reset</button>
+    </main>
+
+    <aside id="controlsHelpPanel" aria-label="Referencia de controles">
+        <h2>Controles</h2>
+        <p><strong>Rotar:</strong> Click + arrastrar</p>
+        <p><strong>Zoom:</strong> Rueda del ratón</p>
+        <p><strong>Pan:</strong> Click derecho</p>
+        <p><strong>Analizar:</strong> Pasa el mouse sobre la onda</p>
+
+        <div class="physics-meta">
+            <p><strong>Física:</strong></p>
+            <p>Onda EM propagándose en +X</p>
+            <p>Campo E perpendicular a k (transversal)</p>
+        </div>
+    </aside>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script src="script.js"></script>
+</body>
+</html>
