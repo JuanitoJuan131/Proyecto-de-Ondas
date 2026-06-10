@@ -1,9 +1,10 @@
 let scene, camera, renderer, controls;
-let wavePoints, waveGeometry;
+let wavePoints, waveGeometry, waveLinesGeometry, waveLinesObject, waveSurfaceObject;
 let gridSize = 50;
 let amplitude = 0.8;
 let frequency = 1.5;
 let wavelength = 4.0;
+let visualizationMode = 'smooth'; // 'points', 'smooth', 'surface3d'
 
 let isMoving = true;
 let accumulatedTime = 0;
@@ -65,11 +66,24 @@ function initControls() {
 }
 
 function createWaveGrid(N) {
-    if (wavePoints) {
-        scene.remove(wavePoints);
-        waveGeometry.dispose();
-    }
+    if (wavePoints) scene.remove(wavePoints);
+    if (waveLinesObject) scene.remove(waveLinesObject);
+    if (waveSurfaceObject) scene.remove(waveSurfaceObject);
+    if (waveGeometry) waveGeometry.dispose();
+    if (waveLinesGeometry) waveLinesGeometry.dispose();
 
+    gridSize = N;
+
+    if (visualizationMode === 'points') {
+        createWaveGridPoints(N);
+    } else if (visualizationMode === 'smooth') {
+        createWaveGridLines(N);
+    } else if (visualizationMode === 'surface3d') {
+        createWaveGridSurface3D(N);
+    }
+}
+
+function createWaveGridPoints(N) {
     waveGeometry = new THREE.BufferGeometry();
     const positions = new Float32Array(N * N * 3);
     const colors = new Float32Array(N * N * 3);
@@ -80,22 +94,18 @@ function createWaveGrid(N) {
         for (let j = 0; j < N; j++) {
             const x = (i - N / 2) * spacing;
             const z = (j - N / 2) * spacing;
-
             positions[index * 3] = x;
             positions[index * 3 + 1] = 0;
             positions[index * 3 + 2] = z;
-
             colors[index * 3] = 0;
             colors[index * 3 + 1] = 1;
             colors[index * 3 + 2] = 1;
-
             index++;
         }
     }
 
     waveGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     waveGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
-
     const pointSize = 25 / N;
     const material = new THREE.PointsMaterial({
         size: pointSize,
@@ -104,28 +114,131 @@ function createWaveGrid(N) {
         transparent: true,
         opacity: 0.85
     });
-
     wavePoints = new THREE.Points(waveGeometry, material);
     scene.add(wavePoints);
-    gridSize = N;
+}
+
+function createWaveGridLines(N) {
+    const positions = [];
+    const colors = [];
+    const spacing = 20 / N;
+
+    // Líneas en dirección X (propagación)
+    for (let j = 0; j < N; j++) {
+        for (let i = 0; i < N - 1; i++) {
+            const x1 = (i - N / 2) * spacing;
+            const x2 = (i + 1 - N / 2) * spacing;
+            const z = (j - N / 2) * spacing;
+
+            positions.push(x1, 0, z, x2, 0, z);
+            colors.push(0, 1, 1, 0, 1, 1);
+        }
+    }
+
+    // Líneas en dirección Z (frentes de onda)
+    for (let i = 0; i < N; i++) {
+        for (let j = 0; j < N - 1; j++) {
+            const x = (i - N / 2) * spacing;
+            const z1 = (j - N / 2) * spacing;
+            const z2 = (j + 1 - N / 2) * spacing;
+
+            positions.push(x, 0, z1, x, 0, z2);
+            colors.push(0, 1, 1, 0, 1, 1);
+        }
+    }
+
+    waveLinesGeometry = new THREE.BufferGeometry();
+    waveLinesGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    waveLinesGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+
+    const lineMaterial = new THREE.LineBasicMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.6,
+        linewidth: 1
+    });
+
+    waveLinesObject = new THREE.LineSegments(waveLinesGeometry, lineMaterial);
+    scene.add(waveLinesObject);
+}
+
+function createWaveGridSurface3D(N) {
+    const geometry = new THREE.BufferGeometry();
+    const positions = [];
+    const colors = [];
+    const indices = [];
+    const spacing = 20 / N;
+
+    // Crear grid con amplitudes iniciales
+    let vertexIndex = 0;
+    for (let i = 0; i < N; i++) {
+        for (let j = 0; j < N; j++) {
+            const x = (i - N / 2) * spacing;
+            const z = (j - N / 2) * spacing;
+
+            positions.push(x, 0, z);
+            colors.push(0, 1, 1);
+            vertexIndex++;
+        }
+    }
+
+    // Crear índices para conectar vértices
+    for (let i = 0; i < N - 1; i++) {
+        for (let j = 0; j < N - 1; j++) {
+            const a = i * N + j;
+            const b = a + N;
+            const c = a + 1;
+            const d = b + 1;
+
+            indices.push(a, c, b);
+            indices.push(c, d, b);
+        }
+    }
+
+    geometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+    geometry.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
+
+    const material = new THREE.MeshPhongMaterial({
+        vertexColors: true,
+        transparent: true,
+        opacity: 0.85,
+        wireframe: false,
+        flatShading: false
+    });
+
+    waveSurfaceObject = new THREE.Mesh(geometry, material);
+    scene.add(waveSurfaceObject);
 }
 
 function updateWave(time) {
-    if (!waveGeometry) return;
-    const positions = waveGeometry.attributes.position.array;
-    const colors = waveGeometry.attributes.color.array;
+    if (visualizationMode === 'points' && !waveGeometry) return;
+    if (visualizationMode === 'smooth' && !waveLinesGeometry) return;
+    if (visualizationMode === 'surface3d' && !waveSurfaceObject) return;
 
     const N = gridSize;
     const spacing = 20 / N;
     const k = (2 * Math.PI) / wavelength;
     const t = time / 1000;
 
+    if (visualizationMode === 'points') {
+        updateWavePoints(N, spacing, k, t);
+    } else if (visualizationMode === 'smooth') {
+        updateWaveLines(N, spacing, k, t);
+    } else if (visualizationMode === 'surface3d') {
+        updateWaveSurface3D(N, spacing, k, t);
+    }
+}
+
+function updateWavePoints(N, spacing, k, t) {
+    const positions = waveGeometry.attributes.position.array;
+    const colors = waveGeometry.attributes.color.array;
     let index = 0;
+
     for (let i = 0; i < N; i++) {
         for (let j = 0; j < N; j++) {
             const x = (i - N / 2) * spacing;
             const z = (j - N / 2) * spacing;
-
             const y = amplitude * Math.cos(k * x - frequency * t);
 
             positions[index * 3] = x;
@@ -143,17 +256,118 @@ function updateWave(time) {
             colors[index * 3] = lerpColor.r;
             colors[index * 3 + 1] = lerpColor.g;
             colors[index * 3 + 2] = lerpColor.b;
-
             index++;
         }
     }
-
     waveGeometry.attributes.position.needsUpdate = true;
     waveGeometry.attributes.color.needsUpdate = true;
 }
 
+function updateWaveLines(N, spacing, k, t) {
+    if (!waveLinesGeometry) return;
+
+    const positions = [];
+    const colors = [];
+    const colorMap = new Map();
+
+    const getColor = (y) => {
+        const normalizedY = Math.max(-1, Math.min(1, y / amplitude));
+        let color;
+        if (normalizedY > 0) {
+            color = new THREE.Color().lerpColors(colorCyan, colorRed, normalizedY);
+        } else {
+            color = new THREE.Color().lerpColors(colorBlue, colorCyan, normalizedY + 1);
+        }
+        return color;
+    };
+
+    // Líneas en dirección X con amplitud actualizada
+    for (let j = 0; j < N; j++) {
+        for (let i = 0; i < N - 1; i++) {
+            const x1 = (i - N / 2) * spacing;
+            const x2 = (i + 1 - N / 2) * spacing;
+            const z = (j - N / 2) * spacing;
+            const y1 = amplitude * Math.cos(k * x1 - frequency * t);
+            const y2 = amplitude * Math.cos(k * x2 - frequency * t);
+
+            positions.push(x1, y1, z, x2, y2, z);
+
+            const col1 = getColor(y1);
+            const col2 = getColor(y2);
+            colors.push(col1.r, col1.g, col1.b, col2.r, col2.g, col2.b);
+        }
+    }
+
+    // Líneas en dirección Z
+    for (let i = 0; i < N; i++) {
+        for (let j = 0; j < N - 1; j++) {
+            const x = (i - N / 2) * spacing;
+            const z1 = (j - N / 2) * spacing;
+            const z2 = (j + 1 - N / 2) * spacing;
+            const y1 = amplitude * Math.cos(k * x - frequency * t);
+            const y2 = amplitude * Math.cos(k * x - frequency * t);
+
+            positions.push(x, y1, z1, x, y2, z2);
+
+            const col1 = getColor(y1);
+            const col2 = getColor(y2);
+            colors.push(col1.r, col1.g, col1.b, col2.r, col2.g, col2.b);
+        }
+    }
+
+    waveLinesGeometry.setAttribute('position', new THREE.BufferAttribute(new Float32Array(positions), 3));
+    waveLinesGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(colors), 3));
+    waveLinesGeometry.attributes.position.needsUpdate = true;
+    waveLinesGeometry.attributes.color.needsUpdate = true;
+}
+
+function updateWaveSurface3D(N, spacing, k, t) {
+    if (!waveSurfaceObject || !waveSurfaceObject.geometry) return;
+
+    const positions = waveSurfaceObject.geometry.attributes.position.array;
+    const colors = waveSurfaceObject.geometry.attributes.color.array;
+    let index = 0;
+
+    for (let i = 0; i < N; i++) {
+        for (let j = 0; j < N; j++) {
+            const x = (i - N / 2) * spacing;
+            const z = (j - N / 2) * spacing;
+            const y = amplitude * Math.cos(k * x - frequency * t);
+
+            positions[index * 3] = x;
+            positions[index * 3 + 1] = y;
+            positions[index * 3 + 2] = z;
+
+            const normalizedY = Math.max(-1, Math.min(1, y / amplitude));
+            let lerpColor;
+            if (normalizedY > 0) {
+                lerpColor = new THREE.Color().lerpColors(colorCyan, colorRed, normalizedY);
+            } else {
+                lerpColor = new THREE.Color().lerpColors(colorBlue, colorCyan, normalizedY + 1);
+            }
+
+            colors[index * 3] = lerpColor.r;
+            colors[index * 3 + 1] = lerpColor.g;
+            colors[index * 3 + 2] = lerpColor.b;
+            index++;
+        }
+    }
+
+    waveSurfaceObject.geometry.attributes.position.needsUpdate = true;
+    waveSurfaceObject.geometry.attributes.color.needsUpdate = true;
+}
+
 function checkMouseIntersection() {
-    if (!wavePoints) return;
+    if (visualizationMode === 'points' && !wavePoints) return;
+    if ((visualizationMode === 'smooth' || visualizationMode === 'surface3d') && !waveGeometry) {
+        // Para smooth y surface3d usamos geometries diferentes
+        return;
+    }
+
+    if (visualizationMode !== 'points') {
+        tooltipElement.style.display = 'none';
+        return; // Por ahora solo soportamos hover para puntos
+    }
 
     raycaster.setFromCamera(mouse, camera);
     const intersects = raycaster.intersectObject(wavePoints);
@@ -213,6 +427,10 @@ function setupUI() {
     const statusDot = document.getElementById('statusDot');
     const currentModeLabel = document.getElementById('currentModeLabel');
 
+    const modePointsBtn = document.getElementById('modePointsBtn');
+    const modeSmoothBtn = document.getElementById('modeSmoothBtn');
+    const modeSurface3DBtn = document.getElementById('modeSurface3DBtn');
+
     const togglePanelBtn = document.getElementById('togglePanelBtn');
     const controlPanel = document.getElementById('controlPanel');
 
@@ -267,6 +485,30 @@ function setupUI() {
         currentModeLabel.style.color = "#ffaa00";
     });
 
+    modePointsBtn.addEventListener('click', () => {
+        visualizationMode = 'points';
+        modePointsBtn.classList.add('active');
+        modeSmoothBtn.classList.remove('active');
+        modeSurface3DBtn.classList.remove('active');
+        createWaveGrid(gridSize);
+    });
+
+    modeSmoothBtn.addEventListener('click', () => {
+        visualizationMode = 'smooth';
+        modeSmoothBtn.classList.add('active');
+        modePointsBtn.classList.remove('active');
+        modeSurface3DBtn.classList.remove('active');
+        createWaveGrid(gridSize);
+    });
+
+    modeSurface3DBtn.addEventListener('click', () => {
+        visualizationMode = 'surface3d';
+        modeSurface3DBtn.classList.add('active');
+        modePointsBtn.classList.remove('active');
+        modeSmoothBtn.classList.remove('active');
+        createWaveGrid(gridSize);
+    });
+
     resetBtn.addEventListener('click', () => {
         amplitude = 0.8;
         frequency = 1.5;
@@ -290,6 +532,11 @@ function setupUI() {
         statusDot.style.backgroundColor = "#00ffcc";
         currentModeLabel.textContent = "MOVIMIENTO";
         currentModeLabel.style.color = "#00ffcc";
+
+        visualizationMode = 'smooth';
+        modeSmoothBtn.classList.add('active');
+        modePointsBtn.classList.remove('active');
+        modeSurface3DBtn.classList.remove('active');
 
         createWaveGrid(50);
         lastTimePoint = Date.now();
