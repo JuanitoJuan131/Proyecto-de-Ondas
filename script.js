@@ -1,9 +1,16 @@
 let scene, camera, renderer, controls;
-let wavePoints, waveGeometry;
-let gridSize = 50;
+let waveSurface, waveGeometry;
+let fieldVectorGroup;
+let electricFieldArrows = [];
+let magneticFieldArrows = [];
+let propagationArrows = [];
+let interactiveVectorObjects = [];
+let gridSize = 96;
 let amplitude = 0.8;
 let frequency = 1.5;
 let wavelength = 4.0;
+let formulaSource = "A*cos(k*x - w*t)";
+let compiledFormula;
 
 let isMoving = true;
 let accumulatedTime = 0;
@@ -27,6 +34,25 @@ const tempPositiveColor = new THREE.Color();
 const tempNegativeColor = new THREE.Color();
 const tempNeutralColor = new THREE.Color();
 const tempLerpColor = new THREE.Color();
+const axisColors = {
+    x: 0xffb84d,
+    y: 0x30f2e9,
+    z: 0xff4fd8
+};
+const vectorSamples = 17;
+const vectorSpan = 18;
+const vectorScale = 1.65;
+const magneticScale = 1.0;
+const minVectorLength = 0.04;
+const yAxis = new THREE.Vector3(0, 1, 0);
+const yAxisNegative = new THREE.Vector3(0, -1, 0);
+const zAxis = new THREE.Vector3(0, 0, 1);
+const zAxisNegative = new THREE.Vector3(0, 0, -1);
+const allowedFormulaNames = new Set([
+    "x", "z", "t", "A", "k", "w", "lambda", "PI", "E",
+    "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
+    "sqrt", "abs", "pow", "exp", "log", "min", "max", "floor", "ceil", "round"
+]);
 
 function initScene() {
     scene = new THREE.Scene();
@@ -58,6 +84,7 @@ function initScene() {
 
     raycaster = new THREE.Raycaster();
     raycaster.params.Points.threshold = 0.25;
+    raycaster.params.Line.threshold = 0.18;
     mouse = new THREE.Vector2(-1000, -1000);
     tooltipElement = document.getElementById('waveTooltip');
 
@@ -88,6 +115,112 @@ function setCameraView(x, y, z) {
     controls.update();
 }
 
+function getWaveValue(x, z, time) {
+    const k = getWaveNumber();
+    const t = time / 1000;
+    const y = compiledFormula(x, z, t, amplitude, k, frequency, wavelength);
+    return Number.isFinite(y) ? THREE.MathUtils.clamp(y, -12, 12) : 0;
+}
+
+function compileFormula(source) {
+    const normalized = source.trim().replace(/\^/g, "**");
+    if (!normalized || !/^[0-9A-Za-z_+\-*\/%().,\s]+$/.test(normalized)) {
+        throw new Error("Usa solo numeros, variables, operadores y funciones permitidas.");
+    }
+
+    const names = normalized.match(/[A-Za-z_][A-Za-z0-9_]*/g) || [];
+    const invalidName = names.find((name) => !allowedFormulaNames.has(name));
+    if (invalidName) {
+        throw new Error(`Nombre no permitido: ${invalidName}`);
+    }
+
+    const fn = new Function(
+        "x", "z", "t", "A", "k", "w", "lambda",
+        "PI", "E", "sin", "cos", "tan", "asin", "acos", "atan", "atan2",
+        "sqrt", "abs", "pow", "exp", "log", "min", "max", "floor", "ceil", "round",
+        `"use strict"; return (${normalized});`
+    );
+
+    const wrapped = (x, z, t, A, k, w, lambda) => fn(
+        x, z, t, A, k, w, lambda,
+        Math.PI, Math.E, Math.sin, Math.cos, Math.tan, Math.asin, Math.acos, Math.atan, Math.atan2,
+        Math.sqrt, Math.abs, Math.pow, Math.exp, Math.log, Math.min, Math.max, Math.floor, Math.ceil, Math.round
+    );
+
+    const testValue = wrapped(0, 0, 0, amplitude, getWaveNumber(), frequency, wavelength);
+    if (!Number.isFinite(testValue)) {
+        throw new Error("La formula debe producir un numero finito.");
+    }
+
+    return wrapped;
+}
+
+compiledFormula = compileFormula(formulaSource);
+
+function createFieldVectors() {
+    fieldVectorGroup = new THREE.Group();
+
+    for (let i = 0; i < vectorSamples; i++) {
+        const x = -vectorSpan / 2 + (i * vectorSpan) / (vectorSamples - 1);
+        const origin = new THREE.Vector3(x, 0, 0);
+
+        const electricArrow = new THREE.ArrowHelper(yAxis, origin, 1, axisColors.y, 0.28, 0.14);
+        const magneticArrow = new THREE.ArrowHelper(zAxis, origin, 1, axisColors.z, 0.28, 0.14);
+        tagArrow(electricArrow, "E", "Y", axisColors.y);
+        tagArrow(magneticArrow, "B", "Z", axisColors.z);
+        electricFieldArrows.push(electricArrow);
+        magneticFieldArrows.push(magneticArrow);
+        fieldVectorGroup.add(electricArrow);
+        fieldVectorGroup.add(magneticArrow);
+
+        if (i % 4 === 0) {
+            const propagationOrigin = new THREE.Vector3(x - 0.45, -2.15, -2.15);
+            const propagationArrow = new THREE.ArrowHelper(
+                new THREE.Vector3(1, 0, 0),
+                propagationOrigin,
+                0.9,
+                axisColors.x,
+                0.22,
+                0.12
+            );
+            tagArrow(propagationArrow, "k", "X", axisColors.x);
+            propagationArrows.push(propagationArrow);
+            fieldVectorGroup.add(propagationArrow);
+        }
+    }
+
+    scene.add(fieldVectorGroup);
+}
+
+function tagArrow(arrow, field, axis, color) {
+    arrow.userData = { field, axis, color, value: field === "k" ? 1 : 0 };
+    arrow.line.userData = arrow.userData;
+    arrow.cone.userData = arrow.userData;
+    interactiveVectorObjects.push(arrow.line, arrow.cone);
+}
+
+function updateArrow(arrow, positiveDirection, negativeDirection, value, scale) {
+    const length = Math.max(Math.abs(value) * scale, minVectorLength);
+    const isVisible = Math.abs(value) > 0.015;
+    arrow.setDirection(value >= 0 ? positiveDirection : negativeDirection);
+    arrow.setLength(length, Math.min(0.34, length * 0.38), Math.min(0.18, length * 0.2));
+    arrow.visible = isVisible;
+    arrow.line.visible = isVisible;
+    arrow.cone.visible = isVisible;
+}
+
+function updateFieldVectors(time) {
+    electricFieldArrows.forEach((electricArrow, index) => {
+        const x = electricArrow.position.x;
+        const electricValue = getWaveValue(x, 0, time);
+        const magneticValue = electricValue * magneticScale;
+        electricArrow.userData.value = electricValue;
+        magneticFieldArrows[index].userData.value = magneticValue;
+        updateArrow(electricArrow, yAxis, yAxisNegative, electricValue, vectorScale);
+        updateArrow(magneticFieldArrows[index], zAxis, zAxisNegative, magneticValue, vectorScale);
+    });
+}
+
 function applySaturation(color, sat) {
     const hsl = {};
     color.getHSL(hsl);
@@ -104,22 +237,23 @@ function updateColorPreview() {
 }
 
 function createWaveGrid(N) {
-    if (wavePoints) {
-        scene.remove(wavePoints);
+    if (waveSurface) {
+        scene.remove(waveSurface);
         waveGeometry.dispose();
-        wavePoints.material.dispose();
+        waveSurface.material.dispose();
     }
 
     waveGeometry = new THREE.BufferGeometry();
     const positions = new Float32Array(N * N * 3);
     const colors = new Float32Array(N * N * 3);
-    const spacing = 20 / N;
+    const indices = [];
+    const spacing = 20 / (N - 1);
     let index = 0;
 
     for (let i = 0; i < N; i++) {
         for (let j = 0; j < N; j++) {
-            const x = (i - N / 2) * spacing;
-            const z = (j - N / 2) * spacing;
+            const x = (i - (N - 1) / 2) * spacing;
+            const z = (j - (N - 1) / 2) * spacing;
 
             positions[index * 3] = x;
             positions[index * 3 + 1] = 0;
@@ -133,20 +267,31 @@ function createWaveGrid(N) {
         }
     }
 
+    for (let i = 0; i < N - 1; i++) {
+        for (let j = 0; j < N - 1; j++) {
+            const a = i * N + j;
+            const b = (i + 1) * N + j;
+            const c = i * N + j + 1;
+            const d = (i + 1) * N + j + 1;
+            indices.push(a, b, c, b, d, c);
+        }
+    }
+
     waveGeometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
     waveGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+    waveGeometry.setIndex(indices);
+    waveGeometry.boundingSphere = new THREE.Sphere(new THREE.Vector3(0, 0, 0), 24);
 
-    const pointSize = 25 / N;
-    const material = new THREE.PointsMaterial({
-        size: pointSize,
+    const material = new THREE.MeshBasicMaterial({
         vertexColors: true,
-        sizeAttenuation: true,
         transparent: true,
-        opacity: opacityLevel
+        opacity: opacityLevel,
+        side: THREE.DoubleSide,
+        depthWrite: false
     });
 
-    wavePoints = new THREE.Points(waveGeometry, material);
-    scene.add(wavePoints);
+    waveSurface = new THREE.Mesh(waveGeometry, material);
+    scene.add(waveSurface);
     gridSize = N;
 }
 
@@ -156,9 +301,7 @@ function updateWave(time) {
     const colors = waveGeometry.attributes.color.array;
 
     const N = gridSize;
-    const spacing = 20 / N;
-    const k = getWaveNumber();
-    const t = time / 1000;
+    const spacing = 20 / (N - 1);
 
     tempPositiveColor.copy(colorPositive);
     tempNegativeColor.copy(colorNegative);
@@ -170,10 +313,10 @@ function updateWave(time) {
     let index = 0;
     for (let i = 0; i < N; i++) {
         for (let j = 0; j < N; j++) {
-            const x = (i - N / 2) * spacing;
-            const z = (j - N / 2) * spacing;
+            const x = (i - (N - 1) / 2) * spacing;
+            const z = (j - (N - 1) / 2) * spacing;
 
-            const y = amplitude * Math.cos(k * x - frequency * t);
+            const y = getWaveValue(x, z, time);
 
             positions[index * 3] = x;
             positions[index * 3 + 1] = y;
@@ -200,18 +343,35 @@ function updateWave(time) {
 }
 
 function checkMouseIntersection() {
-    if (!wavePoints) return;
+    if (!waveSurface) return;
 
     raycaster.setFromCamera(mouse, camera);
-    const intersects = raycaster.intersectObject(wavePoints);
+    const vectorIntersects = raycaster.intersectObjects(interactiveVectorObjects, false);
+
+    if (vectorIntersects.length > 0) {
+        const data = vectorIntersects[0].object.userData;
+        const vectorColor = `#${data.color.toString(16).padStart(6, "0")}`;
+        const relation = data.field === "k"
+            ? "Direccion de propagacion"
+            : data.field === "E"
+                ? "Campo electrico transversal"
+                : "Campo magnetico transversal, normalizado en pantalla";
+
+        tooltipElement.style.display = 'block';
+        tooltipElement.innerHTML = `
+            <strong style="color: ${vectorColor}">Vector ${data.field} sobre ${data.axis}</strong><br>
+            ${relation}<br>
+            Valor visual: ${data.value.toFixed(2)} u<br>
+            E x B apunta a +X
+        `;
+        return;
+    }
+
+    const intersects = raycaster.intersectObject(waveSurface);
 
     if (intersects.length > 0) {
-        const pointIndex = intersects[0].index;
-        const positions = waveGeometry.attributes.position.array;
-
-        const x = positions[pointIndex * 3];
-        const y = positions[pointIndex * 3 + 1];
-        const z = positions[pointIndex * 3 + 2];
+        const { x, z } = intersects[0].point;
+        const y = getWaveValue(x, z, accumulatedTime);
 
         const ratio = y / amplitude;
         let zoneName = "Zona de Transición";
@@ -232,7 +392,8 @@ function checkMouseIntersection() {
         tooltipElement.innerHTML = `
             <strong style="color: ${colorHex}">${zoneName}</strong><br>
             X (Propagación): ${x.toFixed(2)} m<br>
-            Y (Amplitud): ${y.toFixed(2)} m<br>
+            E_y: ${y.toFixed(2)} u<br>
+            B_z: ${(y * magneticScale).toFixed(2)} u<br>
             Z (Frente de Onda): ${z.toFixed(2)} m
         `;
     } else {
@@ -249,6 +410,9 @@ function onMouseMove(event) {
 }
 
 function setupUI() {
+    const formulaInput = document.getElementById('formulaInput');
+    const formulaStatus = document.getElementById('formulaStatus');
+    const formulaDisplay = document.getElementById('formulaDisplay');
     const amplitudeSlider = document.getElementById('amplitudeSlider');
     const frequencySlider = document.getElementById('frequencySlider');
     const wavelengthSlider = document.getElementById('wavelengthSlider');
@@ -265,6 +429,21 @@ function setupUI() {
 
     const togglePanelBtn = document.getElementById('togglePanelBtn');
     const controlPanel = document.getElementById('controlPanel');
+
+    formulaInput.addEventListener('input', (e) => {
+        try {
+            const nextFormula = e.target.value;
+            const nextCompiledFormula = compileFormula(nextFormula);
+            formulaSource = nextFormula;
+            compiledFormula = nextCompiledFormula;
+            formulaDisplay.textContent = `E_y(x,z,t) = ${formulaSource}, B_z = E_y/c (normalizado), k = 2pi/lambda`;
+            formulaStatus.textContent = "Formula valida";
+            formulaStatus.classList.remove('invalid');
+        } catch (error) {
+            formulaStatus.textContent = "Formula no valida";
+            formulaStatus.classList.add('invalid');
+        }
+    });
 
     togglePanelBtn.addEventListener('click', () => {
         controlPanel.classList.toggle('retracted');
@@ -295,7 +474,7 @@ function setupUI() {
     resolutionSlider.addEventListener('input', (e) => {
         const N = parseInt(e.target.value);
         document.getElementById('resValue').textContent = N;
-        document.getElementById('pointsValue').textContent = (N * N).toLocaleString() + " pts";
+        document.getElementById('pointsValue').textContent = (N * N).toLocaleString() + " vtx";
         createWaveGrid(N);
     });
 
@@ -323,8 +502,8 @@ function setupUI() {
     opacitySlider.addEventListener('input', (e) => {
         opacityLevel = parseFloat(e.target.value) / 100;
         document.getElementById('opacityValue').textContent = e.target.value + '%';
-        if (wavePoints && wavePoints.material) {
-            wavePoints.material.opacity = opacityLevel;
+        if (waveSurface && waveSurface.material) {
+            waveSurface.material.opacity = opacityLevel;
         }
     });
 
@@ -344,8 +523,8 @@ function setupUI() {
         document.getElementById('opacityValue').textContent = '85%';
         updateColorPreview();
 
-        if (wavePoints && wavePoints.material) {
-            wavePoints.material.opacity = opacityLevel;
+        if (waveSurface && waveSurface.material) {
+            waveSurface.material.opacity = opacityLevel;
         }
 
         document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
@@ -418,23 +597,29 @@ function setupUI() {
         amplitude = 0.8;
         frequency = 1.5;
         wavelength = 4.0;
-        gridSize = 50;
+        formulaSource = "A*cos(k*x - w*t)";
+        compiledFormula = compileFormula(formulaSource);
+        gridSize = 96;
         isMoving = true;
         accumulatedTime = 0;
         controls.autoRotate = true;
 
+        formulaInput.value = formulaSource;
+        formulaStatus.textContent = "Formula valida";
+        formulaStatus.classList.remove('invalid');
+        formulaDisplay.textContent = `E_y(x,z,t) = ${formulaSource}, B_z = E_y/c (normalizado), k = 2pi/lambda`;
         amplitudeSlider.value = 0.8;
         frequencySlider.value = 1.5;
         wavelengthSlider.value = 4.0;
-        resolutionSlider.value = 50;
+        resolutionSlider.value = 96;
 
         document.getElementById('ampValue').textContent = '0.8';
         document.getElementById('freqValue').textContent = '1.5';
         document.getElementById('wavelengthValue').textContent = '4.0 m';
         document.getElementById('lambdaValue').textContent = '4.0 m';
         document.getElementById('kValue').textContent = getWaveNumber().toFixed(2) + " rad/m";
-        document.getElementById('resValue').textContent = '50';
-        document.getElementById('pointsValue').textContent = '2,500 pts';
+        document.getElementById('resValue').textContent = '96';
+        document.getElementById('pointsValue').textContent = '9,216 vtx';
 
         wavePlayBtn.classList.add('active');
         wavePauseBtn.classList.remove('active');
@@ -446,7 +631,7 @@ function setupUI() {
         currentModeLabel.textContent = "ONDA + ROTACION";
         currentModeLabel.style.color = "#00ffcc";
 
-        createWaveGrid(50);
+        createWaveGrid(96);
         setCameraView(15, 12, 15);
         lastTimePoint = Date.now();
     });
@@ -473,6 +658,7 @@ function animate() {
     lastTimePoint = now;
 
     updateWave(accumulatedTime);
+    updateFieldVectors(accumulatedTime);
     checkMouseIntersection();
 
     renderer.render(scene, camera);
@@ -482,6 +668,7 @@ function init() {
     initScene();
     initControls();
     createWaveGrid(gridSize);
+    createFieldVectors();
     setupUI();
 
     lastTimePoint = Date.now();

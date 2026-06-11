@@ -27,9 +27,18 @@
             <h1>WaveForge 3D</h1>
         </header>
 
-        <div class="equation">
-            E(x,t) = A·cos(kx - wt) y, k = 2pi/lambda
+        <div class="equation" id="formulaDisplay">
+            E_y(x,z,t) = A*cos(k*x - w*t), B_z = E_y/c (normalizado), k = 2pi/lambda
         </div>
+
+        <section class="panel-section" aria-labelledby="formulaTitle">
+            <h2 class="section-title" id="formulaTitle">Formula Base</h2>
+            <div class="formula-editor">
+                <label for="formulaInput">E_y(x,z,t)</label>
+                <input id="formulaInput" type="text" value="A*cos(k*x - w*t)" spellcheck="false" aria-label="Formula base de la onda">
+                <span id="formulaStatus">Formula valida</span>
+            </div>
+        </section>
 
         <section class="panel-section" aria-labelledby="waveParametersTitle">
             <h2 class="section-title" id="waveParametersTitle">Parámetros de Onda</h2>
@@ -61,9 +70,9 @@
             <div class="control-group">
                 <div class="control-label">
                     <span>Resolución (N)</span>
-                    <span id="resValue">50</span>
+                    <span id="resValue">96</span>
                 </div>
-                <input type="range" id="resolutionSlider" min="20" max="80" step="1" value="50" aria-label="Resolución de la malla">
+                <input type="range" id="resolutionSlider" min="48" max="144" step="1" value="96" aria-label="Resolución de la malla">
             </div>
         </section>
 
@@ -100,7 +109,7 @@
                     <span>Opacidad</span>
                     <span id="opacityValue">85%</span>
                 </div>
-                <input type="range" id="opacitySlider" min="0" max="100" step="1" value="85" aria-label="Opacidad de los puntos">
+                <input type="range" id="opacitySlider" min="0" max="100" step="1" value="85" aria-label="Opacidad de la superficie">
             </div>
 
             <div class="presets-group">
@@ -134,8 +143,17 @@
             <div class="info-box-bar">
                 <div><span>k = 2pi/lambda</span> <span class="value" id="kValue">1.57 rad/m</span></div>
                 <div><span>lambda</span> <span class="value" id="lambdaValue">4.0 m</span></div>
-                <div><span>N² (Puntos)</span> <span class="value" id="pointsValue">2,500 pts</span></div>
+                <div><span>N² (Vértices)</span> <span class="value" id="pointsValue">9,216 vtx</span></div>
                 <div><span>Modo activo</span> <span class="value" id="currentModeLabel">ONDA + ROTACION</span></div>
+            </div>
+        </section>
+
+        <section class="panel-section" aria-labelledby="fieldLegendTitle">
+            <h2 class="section-title" id="fieldLegendTitle">Vectores de Campo</h2>
+            <div class="field-legend">
+                <div><span class="axis-swatch axis-x"></span><span>k / propagación +X</span></div>
+                <div><span class="axis-swatch axis-y"></span><span>E electrico en Y</span></div>
+                <div><span class="axis-swatch axis-z"></span><span>B magnetico en Z</span></div>
             </div>
         </section>
 
@@ -147,12 +165,12 @@
         <p><strong>Rotar:</strong> Click + arrastrar</p>
         <p><strong>Zoom:</strong> Rueda del ratón</p>
         <p><strong>Pan:</strong> Click derecho</p>
-        <p><strong>Analizar:</strong> Pasa el mouse sobre la onda</p>
+        <p><strong>Analizar:</strong> Pasa el mouse sobre la onda o los vectores</p>
 
         <div class="physics-meta">
             <p><strong>Física:</strong></p>
             <p>Onda EM propagándose en +X</p>
-            <p>Campo E perpendicular a k (transversal)</p>
+            <p>E en Y y B en Z, ambos perpendiculares a k</p>
         </div>
     </aside>
 
