@@ -12,19 +12,31 @@
 <body>
     <div class="scene-vignette" aria-hidden="true"></div>
 
-    <div id="topStatus">
-        <span class="dot" id="statusDot"></span>
-        <span id="statusLabel">ONDA ACTIVA</span>
+    <div id="topLeftControls">
+        <div id="viewModeSelector">
+            <button id="view3DBtn" class="view-mode-btn active" type="button" title="Vista 3D">3D</button>
+            <button id="view2DBtn" class="view-mode-btn" type="button" title="Vista 2D">2D</button>
+        </div>
+
+        <div id="topStatus">
+            <span class="dot" id="statusDot"></span>
+            <span id="statusLabel">ONDA ACTIVA</span>
+        </div>
     </div>
 
-    <button id="togglePanelBtn" type="button">Ocultar Panel</button>
+    <div id="topRightControls">
+        <button id="toggleThemeBtn" type="button" title="Cambiar tema">🌙</button>
+        <button id="togglePanelBtn" type="button">Ocultar Panel</button>
+    </div>
 
     <div id="waveTooltip"></div>
+
+    <canvas id="canvas2D" style="display: none;"></canvas>
 
     <main id="controlPanel" aria-label="Panel de control de la onda">
         <header class="panel-header">
             <p class="eyebrow">Simulador interactivo</p>
-            <h1>WaveForge 3D</h1>
+            <h1>WaveForge </h1>
         </header>
 
         <div class="equation" id="formulaDisplay">

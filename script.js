@@ -1,6 +1,6 @@
 let scene, camera, renderer, controls;
 let waveSurface, waveWireframe, waveGeometry;
-let fieldVectorGroup;
+let fieldVectorGroup, gridHelper;
 let electricFieldArrows = [];
 let magneticFieldArrows = [];
 let propagationArrows = [];
@@ -23,6 +23,10 @@ let colorNegative = new THREE.Color(0x0044ff);
 let colorNeutral = new THREE.Color(0x00ffff);
 let saturation = 1.0;
 let opacityLevel = 1.0;
+
+let currentView = '3D';
+let isDarkMode = true;
+let canvas2D, ctx2D;
 
 const defaultColors = {
     positive: new THREE.Color(0xff2200),
@@ -75,7 +79,7 @@ function initScene() {
     directionalLight.position.set(20, 20, 20);
     scene.add(directionalLight);
 
-    const gridHelper = new THREE.GridHelper(20, 20, 0x00ffcc, 0x002233);
+    gridHelper = new THREE.GridHelper(20, 20, 0x00ffcc, 0x002233);
     gridHelper.position.y = -5;
     scene.add(gridHelper);
 
@@ -447,6 +451,10 @@ function setupUI() {
     const togglePanelBtn = document.getElementById('togglePanelBtn');
     const controlPanel = document.getElementById('controlPanel');
 
+    const view3DBtn = document.getElementById('view3DBtn');
+    const view2DBtn = document.getElementById('view2DBtn');
+    const toggleThemeBtn = document.getElementById('toggleThemeBtn');
+
     formulaInput.addEventListener('input', (e) => {
         try {
             const nextFormula = e.target.value;
@@ -665,17 +673,220 @@ function setupUI() {
     document.getElementById('kValue').textContent = getWaveNumber().toFixed(2) + " rad/m";
 
     updateColorPreview();
+
+    view3DBtn.addEventListener('click', () => switchView('3D'));
+    view2DBtn.addEventListener('click', () => switchView('2D'));
+
+    toggleThemeBtn.addEventListener('click', () => {
+        isDarkMode = !isDarkMode;
+        document.body.classList.toggle('light-mode');
+        toggleThemeBtn.textContent = isDarkMode ? '🌙' : '☀️';
+
+        const bgColor = isDarkMode ? 0x030308 : 0xffffff;
+        const fogColor = isDarkMode ? 0x030308 : 0xffffff;
+        const gridColorLight = isDarkMode ? 0x00ffcc : 0x666666;
+        const gridColorDark = isDarkMode ? 0x002233 : 0xcccccc;
+
+        scene.background = new THREE.Color(bgColor);
+        scene.fog.color.setHex(fogColor);
+
+        if (gridHelper) {
+            scene.remove(gridHelper);
+        }
+
+        gridHelper = new THREE.GridHelper(20, 20, gridColorLight, gridColorDark);
+        gridHelper.position.y = -5;
+        scene.add(gridHelper);
+    });
+}
+
+function switchView(view) {
+    currentView = view;
+    const view3DBtn = document.getElementById('view3DBtn');
+    const view2DBtn = document.getElementById('view2DBtn');
+    const canvas3D = renderer.domElement;
+
+    const saturationControl = document.querySelector('.control-group:has(#saturationSlider)');
+    const opacityControl = document.querySelector('.control-group:has(#opacitySlider)');
+
+    if (view === '3D') {
+        canvas3D.style.display = 'block';
+        canvas2D.style.display = 'none';
+        view3DBtn.classList.add('active');
+        view2DBtn.classList.remove('active');
+        document.getElementById('controlsHelpPanel').style.display = 'block';
+        if (saturationControl) saturationControl.style.display = 'block';
+        if (opacityControl) opacityControl.style.display = 'block';
+    } else {
+        canvas3D.style.display = 'none';
+        canvas2D.style.display = 'block';
+        view3DBtn.classList.remove('active');
+        view2DBtn.classList.add('active');
+        document.getElementById('controlsHelpPanel').style.display = 'none';
+        if (saturationControl) saturationControl.style.display = 'none';
+        if (opacityControl) opacityControl.style.display = 'none';
+        canvas2D.width = window.innerWidth;
+        canvas2D.height = window.innerHeight;
+    }
+}
+
+function draw2DWave(time) {
+    if (!ctx2D || currentView !== '2D') return;
+
+    const width = canvas2D.width;
+    const height = canvas2D.height;
+    const centerY = height / 2;
+    const scale = 40;
+    const padding = 80;
+
+    const bgColor = isDarkMode ? '#030308' : '#ffffff';
+    const textColor = isDarkMode ? '#f5f8ff' : '#1f2937';
+    const gridColor = isDarkMode ? 'rgba(130, 210, 255, 0.1)' : 'rgba(100, 100, 100, 0.1)';
+    const axisColor = isDarkMode ? 'rgba(130, 210, 255, 0.4)' : 'rgba(100, 100, 100, 0.4)';
+
+    ctx2D.fillStyle = bgColor;
+    ctx2D.fillRect(0, 0, width, height);
+
+    ctx2D.strokeStyle = gridColor;
+    ctx2D.lineWidth = 0.5;
+    for (let y = 0; y < height; y += 40) {
+        ctx2D.beginPath();
+        ctx2D.moveTo(0, y);
+        ctx2D.lineTo(width, y);
+        ctx2D.stroke();
+    }
+    for (let x = 0; x < width; x += 40) {
+        ctx2D.beginPath();
+        ctx2D.moveTo(x, 0);
+        ctx2D.lineTo(x, height);
+        ctx2D.stroke();
+    }
+
+    ctx2D.strokeStyle = axisColor;
+    ctx2D.lineWidth = 2;
+    ctx2D.beginPath();
+    ctx2D.moveTo(padding, centerY);
+    ctx2D.lineTo(width - padding, centerY);
+    ctx2D.stroke();
+    ctx2D.beginPath();
+    ctx2D.moveTo(padding, padding);
+    ctx2D.lineTo(padding, height - padding);
+    ctx2D.stroke();
+
+    const electricColor = colorPositive.getStyle();
+    const magneticColor = colorNegative.getStyle();
+
+    ctx2D.lineWidth = 3;
+
+    ctx2D.strokeStyle = electricColor;
+    ctx2D.globalAlpha = 0.85;
+    ctx2D.beginPath();
+    for (let px = 0; px < width - 2 * padding; px += 2) {
+        const x = (px / (width - 2 * padding)) * 20 - 10;
+        const y = getWaveValue(x, 0, time);
+        const screenX = padding + px;
+        const screenY = centerY - y * scale;
+        if (px === 0) ctx2D.moveTo(screenX, screenY);
+        else ctx2D.lineTo(screenX, screenY);
+    }
+    ctx2D.stroke();
+
+    ctx2D.strokeStyle = magneticColor;
+    ctx2D.globalAlpha = 0.6;
+    ctx2D.beginPath();
+    for (let px = 0; px < width - 2 * padding; px += 2) {
+        const x = (px / (width - 2 * padding)) * 20 - 10;
+        const y = getWaveValue(x, 0, time) * magneticScale;
+        const screenX = padding + px;
+        const screenY = centerY - y * scale;
+        if (px === 0) ctx2D.moveTo(screenX, screenY);
+        else ctx2D.lineTo(screenX, screenY);
+    }
+    ctx2D.stroke();
+    ctx2D.globalAlpha = 1;
+
+    ctx2D.fillStyle = textColor;
+    ctx2D.font = 'bold 12px "JetBrains Mono", monospace';
+    ctx2D.textAlign = 'left';
+    ctx2D.fillText('E_y (Eléctrico)', padding + 10, 30);
+    ctx2D.fillStyle = magneticColor;
+    ctx2D.fillText('B_z (Magnético)', padding + 10, 50);
+
+    ctx2D.fillStyle = textColor;
+    ctx2D.textAlign = 'right';
+    ctx2D.font = '11px "JetBrains Mono", monospace';
+    ctx2D.fillText('Propagación (+X) →', width - padding - 10, centerY - 10);
+    ctx2D.textAlign = 'center';
+    ctx2D.fillText('E_y', padding - 20, centerY + 5);
+}
+
+function check2DMouseIntersection(event) {
+    if (currentView !== '2D') return;
+
+    const rect = canvas2D.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    const width = canvas2D.width;
+    const height = canvas2D.height;
+    const centerY = height / 2;
+    const scale = 40;
+    const padding = 80;
+
+    if (x < padding || x > width - padding) {
+        tooltipElement.style.display = 'none';
+        return;
+    }
+
+    const normalizedX = ((x - padding) / (width - 2 * padding)) * 20 - 10;
+    const electricValue = getWaveValue(normalizedX, 0, accumulatedTime);
+    const screenY = centerY - electricValue * scale;
+
+    const distanceToWave = Math.abs(y - screenY);
+    if (distanceToWave > 25) {
+        tooltipElement.style.display = 'none';
+        return;
+    }
+
+    const ratio = electricValue / amplitude;
+    let zoneName = "Zona de Transición";
+    let colorHex = "#00ffff";
+
+    if (ratio > 0.88) {
+        zoneName = "CRESTA (Máximo)";
+        colorHex = "#ff2200";
+    } else if (ratio < -0.88) {
+        zoneName = "VALLE (Mínimo)";
+        colorHex = "#0044ff";
+    } else if (Math.abs(ratio) < 0.12) {
+        zoneName = "NODO (Cero)";
+        colorHex = "#00ffcc";
+    }
+
+    tooltipElement.style.display = 'block';
+    tooltipElement.innerHTML = `
+        <strong style="color: ${colorHex}">${zoneName}</strong><br>
+        X (Propagación): ${normalizedX.toFixed(2)} m<br>
+        E_y: ${electricValue.toFixed(2)} u<br>
+        B_z: ${(electricValue * magneticScale).toFixed(2)} u
+    `;
+    tooltipElement.style.left = event.clientX + 15 + 'px';
+    tooltipElement.style.top = event.clientY + 15 + 'px';
 }
 
 function onWindowResize() {
-    camera.aspect = window.innerWidth / window.innerHeight;
-    camera.updateProjectionMatrix();
-    renderer.setSize(window.innerWidth, window.innerHeight);
+    if (currentView === '3D') {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    } else if (currentView === '2D') {
+        canvas2D.width = window.innerWidth;
+        canvas2D.height = window.innerHeight;
+    }
 }
 
 function animate() {
     requestAnimationFrame(animate);
-    controls.update();
 
     const now = Date.now();
     if (isMoving) {
@@ -683,11 +894,15 @@ function animate() {
     }
     lastTimePoint = now;
 
-    updateWave(accumulatedTime);
-    updateFieldVectors(accumulatedTime);
-    checkMouseIntersection();
-
-    renderer.render(scene, camera);
+    if (currentView === '3D') {
+        controls.update();
+        updateWave(accumulatedTime);
+        updateFieldVectors(accumulatedTime);
+        checkMouseIntersection();
+        renderer.render(scene, camera);
+    } else if (currentView === '2D') {
+        draw2DWave(accumulatedTime);
+    }
 }
 
 function init() {
@@ -696,6 +911,13 @@ function init() {
     createWaveGrid(gridSize);
     createFieldVectors();
     setupUI();
+
+    canvas2D = document.getElementById('canvas2D');
+    ctx2D = canvas2D.getContext('2d');
+    canvas2D.width = window.innerWidth;
+    canvas2D.height = window.innerHeight;
+
+    canvas2D.addEventListener('mousemove', check2DMouseIntersection);
 
     lastTimePoint = Date.now();
     animate();
