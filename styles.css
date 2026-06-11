@@ -336,13 +336,20 @@ input[type="color"] {
     transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 
-.camera-grid {
+.camera-grid,
+.view-grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
 }
 
+.view-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    margin-top: 10px;
+}
+
 .cam-btn,
+.view-btn,
 #resetBtn {
     min-height: 42px;
     border: 1px solid rgba(230, 239, 255, 0.14);
@@ -356,6 +363,7 @@ input[type="color"] {
 }
 
 .cam-btn:hover,
+.view-btn:hover,
 #resetBtn:hover {
     transform: translateY(-1px);
     border-color: rgba(48, 242, 233, 0.62);
@@ -367,6 +375,13 @@ input[type="color"] {
     background: rgba(48, 242, 233, 0.16);
     color: var(--cyan);
     box-shadow: inset 0 0 0 1px rgba(48, 242, 233, 0.12);
+}
+
+.view-btn {
+    min-height: 36px;
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--muted);
 }
 
 .info-box-bar {
@@ -509,5 +524,9 @@ input[type="color"] {
 
     .presets-group {
         grid-template-columns: repeat(4, 1fr);
+    }
+
+    .view-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 }

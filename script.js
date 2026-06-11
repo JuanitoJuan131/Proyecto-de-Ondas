@@ -23,9 +23,10 @@ const defaultColors = {
     neutral: new THREE.Color(0x00ffff)
 };
 
-const colorRed = new THREE.Color(0xff2200);
-const colorBlue = new THREE.Color(0x0044ff);
-const colorCyan = new THREE.Color(0x00ffff);
+const tempPositiveColor = new THREE.Color();
+const tempNegativeColor = new THREE.Color();
+const tempNeutralColor = new THREE.Color();
+const tempLerpColor = new THREE.Color();
 
 function initScene() {
     scene = new THREE.Scene();
@@ -76,6 +77,17 @@ function initControls() {
     controls.maxDistance = 100;
 }
 
+function getWaveNumber() {
+    return (2 * Math.PI) / wavelength;
+}
+
+function setCameraView(x, y, z) {
+    camera.position.set(x, y, z);
+    camera.lookAt(0, 0, 0);
+    controls.target.set(0, 0, 0);
+    controls.update();
+}
+
 function applySaturation(color, sat) {
     const hsl = {};
     color.getHSL(hsl);
@@ -95,6 +107,7 @@ function createWaveGrid(N) {
     if (wavePoints) {
         scene.remove(wavePoints);
         waveGeometry.dispose();
+        wavePoints.material.dispose();
     }
 
     waveGeometry = new THREE.BufferGeometry();
@@ -144,8 +157,15 @@ function updateWave(time) {
 
     const N = gridSize;
     const spacing = 20 / N;
-    const k = (2 * Math.PI) / wavelength;
+    const k = getWaveNumber();
     const t = time / 1000;
+
+    tempPositiveColor.copy(colorPositive);
+    tempNegativeColor.copy(colorNegative);
+    tempNeutralColor.copy(colorNeutral);
+    applySaturation(tempPositiveColor, saturation);
+    applySaturation(tempNegativeColor, saturation);
+    applySaturation(tempNeutralColor, saturation);
 
     let index = 0;
     for (let i = 0; i < N; i++) {
@@ -160,23 +180,16 @@ function updateWave(time) {
             positions[index * 3 + 2] = z;
 
             const normalizedY = Math.max(-1, Math.min(1, y / amplitude));
-            let lerpColor;
-
-            const posColor = new THREE.Color(colorPositive);
-            const negColor = new THREE.Color(colorNegative);
-
-            applySaturation(posColor, saturation);
-            applySaturation(negColor, saturation);
 
             if (normalizedY > 0) {
-                lerpColor = new THREE.Color().lerpColors(colorNeutral, posColor, normalizedY);
+                tempLerpColor.lerpColors(tempNeutralColor, tempPositiveColor, normalizedY);
             } else {
-                lerpColor = new THREE.Color().lerpColors(negColor, colorNeutral, normalizedY + 1);
+                tempLerpColor.lerpColors(tempNegativeColor, tempNeutralColor, normalizedY + 1);
             }
 
-            colors[index * 3] = lerpColor.r;
-            colors[index * 3 + 1] = lerpColor.g;
-            colors[index * 3 + 2] = lerpColor.b;
+            colors[index * 3] = tempLerpColor.r;
+            colors[index * 3 + 1] = tempLerpColor.g;
+            colors[index * 3 + 2] = tempLerpColor.b;
 
             index++;
         }
@@ -238,9 +251,12 @@ function onMouseMove(event) {
 function setupUI() {
     const amplitudeSlider = document.getElementById('amplitudeSlider');
     const frequencySlider = document.getElementById('frequencySlider');
+    const wavelengthSlider = document.getElementById('wavelengthSlider');
     const resolutionSlider = document.getElementById('resolutionSlider');
     const resetBtn = document.getElementById('resetBtn');
 
+    const wavePlayBtn = document.getElementById('wavePlayBtn');
+    const wavePauseBtn = document.getElementById('wavePauseBtn');
     const camRotBtn = document.getElementById('camRotBtn');
     const camEstBtn = document.getElementById('camEstBtn');
     const topStatus = document.getElementById('statusLabel');
@@ -267,6 +283,13 @@ function setupUI() {
     frequencySlider.addEventListener('input', (e) => {
         frequency = parseFloat(e.target.value);
         document.getElementById('freqValue').textContent = frequency.toFixed(1);
+    });
+
+    wavelengthSlider.addEventListener('input', (e) => {
+        wavelength = parseFloat(e.target.value);
+        document.getElementById('wavelengthValue').textContent = wavelength.toFixed(1) + ' m';
+        document.getElementById('lambdaValue').textContent = wavelength.toFixed(1) + ' m';
+        document.getElementById('kValue').textContent = getWaveNumber().toFixed(2) + " rad/m";
     });
 
     resolutionSlider.addEventListener('input', (e) => {
@@ -336,11 +359,12 @@ function setupUI() {
     };
 
     Object.entries(presets).forEach(([key, colors]) => {
-        document.getElementById(`preset${key.charAt(0).toUpperCase() + key.slice(1)}`).addEventListener('click', () => {
+        document.getElementById(`preset${key.charAt(0).toUpperCase() + key.slice(1)}`).addEventListener('click', (event) => {
             positiveColorInput.value = colors.positive;
             negativeColorInput.value = colors.negative;
             colorPositive.setStyle(colors.positive);
             colorNegative.setStyle(colors.negative);
+            colorNeutral.setStyle(colors.neutral);
             updateColorPreview();
 
             document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
@@ -348,34 +372,52 @@ function setupUI() {
         });
     });
 
-    camRotBtn.addEventListener('click', () => {
-        controls.autoRotate = true;
+    wavePlayBtn.addEventListener('click', () => {
         isMoving = true;
-        camRotBtn.classList.add('active');
-        camEstBtn.classList.remove('active');
-        topStatus.textContent = "ROTANDO";
+        wavePlayBtn.classList.add('active');
+        wavePauseBtn.classList.remove('active');
+        topStatus.textContent = "ONDA ACTIVA";
         statusDot.style.backgroundColor = "#00ffcc";
         statusDot.style.boxShadow = "0 0 8px #00ffcc";
-        currentModeLabel.textContent = "MOVIMIENTO";
+        currentModeLabel.textContent = controls.autoRotate ? "ONDA + ROTACION" : "ONDA";
         currentModeLabel.style.color = "#00ffcc";
         lastTimePoint = Date.now();
     });
 
-    camEstBtn.addEventListener('click', () => {
-        controls.autoRotate = false;
+    wavePauseBtn.addEventListener('click', () => {
         isMoving = false;
-        camEstBtn.classList.add('active');
-        camRotBtn.classList.remove('active');
-        topStatus.textContent = "ESTÁTICO / PAUSA";
+        wavePauseBtn.classList.add('active');
+        wavePlayBtn.classList.remove('active');
+        topStatus.textContent = "ONDA PAUSADA";
         statusDot.style.backgroundColor = "#ffaa00";
         statusDot.style.boxShadow = "0 0 8px #ffaa00";
-        currentModeLabel.textContent = "ESTÁTICO";
+        currentModeLabel.textContent = controls.autoRotate ? "PAUSA + ROTACION" : "PAUSA";
         currentModeLabel.style.color = "#ffaa00";
     });
+
+    camRotBtn.addEventListener('click', () => {
+        controls.autoRotate = true;
+        camRotBtn.classList.add('active');
+        camEstBtn.classList.remove('active');
+        currentModeLabel.textContent = isMoving ? "ONDA + ROTACION" : "PAUSA + ROTACION";
+    });
+
+    camEstBtn.addEventListener('click', () => {
+        controls.autoRotate = false;
+        camEstBtn.classList.add('active');
+        camRotBtn.classList.remove('active');
+        currentModeLabel.textContent = isMoving ? "ONDA" : "PAUSA";
+    });
+
+    document.getElementById('viewIsoBtn').addEventListener('click', () => setCameraView(15, 12, 15));
+    document.getElementById('viewFrontBtn').addEventListener('click', () => setCameraView(0, 4, 24));
+    document.getElementById('viewTopBtn').addEventListener('click', () => setCameraView(0, 28, 0.1));
+    document.getElementById('viewSideBtn').addEventListener('click', () => setCameraView(24, 4, 0));
 
     resetBtn.addEventListener('click', () => {
         amplitude = 0.8;
         frequency = 1.5;
+        wavelength = 4.0;
         gridSize = 50;
         isMoving = true;
         accumulatedTime = 0;
@@ -383,26 +425,33 @@ function setupUI() {
 
         amplitudeSlider.value = 0.8;
         frequencySlider.value = 1.5;
+        wavelengthSlider.value = 4.0;
         resolutionSlider.value = 50;
 
         document.getElementById('ampValue').textContent = '0.8';
         document.getElementById('freqValue').textContent = '1.5';
+        document.getElementById('wavelengthValue').textContent = '4.0 m';
+        document.getElementById('lambdaValue').textContent = '4.0 m';
+        document.getElementById('kValue').textContent = getWaveNumber().toFixed(2) + " rad/m";
         document.getElementById('resValue').textContent = '50';
         document.getElementById('pointsValue').textContent = '2,500 pts';
 
+        wavePlayBtn.classList.add('active');
+        wavePauseBtn.classList.remove('active');
         camRotBtn.classList.add('active');
         camEstBtn.classList.remove('active');
-        topStatus.textContent = "ROTANDO";
+        topStatus.textContent = "ONDA ACTIVA";
         statusDot.style.backgroundColor = "#00ffcc";
-        currentModeLabel.textContent = "MOVIMIENTO";
+        statusDot.style.boxShadow = "0 0 8px #00ffcc";
+        currentModeLabel.textContent = "ONDA + ROTACION";
         currentModeLabel.style.color = "#00ffcc";
 
         createWaveGrid(50);
+        setCameraView(15, 12, 15);
         lastTimePoint = Date.now();
     });
 
-    const k = (2 * Math.PI) / wavelength;
-    document.getElementById('kValue').textContent = k.toFixed(2) + " rad/m";
+    document.getElementById('kValue').textContent = getWaveNumber().toFixed(2) + " rad/m";
 
     updateColorPreview();
 }

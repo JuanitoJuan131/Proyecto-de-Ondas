@@ -14,7 +14,7 @@
 
     <div id="topStatus">
         <span class="dot" id="statusDot"></span>
-        <span id="statusLabel">ROTANDO</span>
+        <span id="statusLabel">ONDA ACTIVA</span>
     </div>
 
     <button id="togglePanelBtn" type="button">Ocultar Panel</button>
@@ -28,7 +28,7 @@
         </header>
 
         <div class="equation">
-            E(x,t) = A·cos(kx - wt) y
+            E(x,t) = A·cos(kx - wt) y, k = 2pi/lambda
         </div>
 
         <section class="panel-section" aria-labelledby="waveParametersTitle">
@@ -39,7 +39,7 @@
                     <span>Amplitud (A)</span>
                     <span id="ampValue">0.8</span>
                 </div>
-                <input type="range" id="amplitudeSlider" min="0.1" max="2.0" step="0.1" value="0.8">
+                <input type="range" id="amplitudeSlider" min="0.1" max="2.0" step="0.1" value="0.8" aria-label="Amplitud de la onda">
             </div>
 
             <div class="control-group">
@@ -47,7 +47,15 @@
                     <span>Frecuencia (w)</span>
                     <span id="freqValue">1.5</span>
                 </div>
-                <input type="range" id="frequencySlider" min="0.5" max="5.0" step="0.1" value="1.5">
+                <input type="range" id="frequencySlider" min="0.5" max="5.0" step="0.1" value="1.5" aria-label="Frecuencia angular de la onda">
+            </div>
+
+            <div class="control-group">
+                <div class="control-label">
+                    <span>Longitud de onda (lambda)</span>
+                    <span id="wavelengthValue">4.0 m</span>
+                </div>
+                <input type="range" id="wavelengthSlider" min="2.0" max="10.0" step="0.1" value="4.0" aria-label="Longitud de onda">
             </div>
 
             <div class="control-group">
@@ -55,7 +63,7 @@
                     <span>Resolución (N)</span>
                     <span id="resValue">50</span>
                 </div>
-                <input type="range" id="resolutionSlider" min="20" max="80" step="1" value="50">
+                <input type="range" id="resolutionSlider" min="20" max="80" step="1" value="50" aria-label="Resolución de la malla">
             </div>
         </section>
 
@@ -84,7 +92,7 @@
                     <span>Saturación</span>
                     <span id="saturationValue">100%</span>
                 </div>
-                <input type="range" id="saturationSlider" min="0" max="100" step="1" value="100">
+                <input type="range" id="saturationSlider" min="0" max="100" step="1" value="100" aria-label="Saturación de colores">
             </div>
 
             <div class="control-group">
@@ -92,7 +100,7 @@
                     <span>Opacidad</span>
                     <span id="opacityValue">85%</span>
                 </div>
-                <input type="range" id="opacitySlider" min="0" max="100" step="1" value="85">
+                <input type="range" id="opacitySlider" min="0" max="100" step="1" value="85" aria-label="Opacidad de los puntos">
             </div>
 
             <div class="presets-group">
@@ -108,8 +116,16 @@
         <section class="panel-section" aria-labelledby="cameraStateTitle">
             <h2 class="section-title" id="cameraStateTitle">Cámara y Estado</h2>
             <div class="camera-grid">
-                <button id="camRotBtn" class="cam-btn active" type="button">Rotar</button>
-                <button id="camEstBtn" class="cam-btn" type="button">Estático</button>
+                <button id="wavePlayBtn" class="cam-btn active" type="button">Onda ON</button>
+                <button id="wavePauseBtn" class="cam-btn" type="button">Pausa</button>
+                <button id="camRotBtn" class="cam-btn active" type="button">Auto-rotar</button>
+                <button id="camEstBtn" class="cam-btn" type="button">Cámara fija</button>
+            </div>
+            <div class="view-grid" aria-label="Vistas rápidas de cámara">
+                <button class="view-btn" id="viewIsoBtn" type="button">Iso</button>
+                <button class="view-btn" id="viewFrontBtn" type="button">Frontal</button>
+                <button class="view-btn" id="viewTopBtn" type="button">Superior</button>
+                <button class="view-btn" id="viewSideBtn" type="button">Lateral</button>
             </div>
         </section>
 
@@ -117,9 +133,9 @@
             <h2 class="section-title" id="systemMetricsTitle">Métricas del Sistema</h2>
             <div class="info-box-bar">
                 <div><span>k = 2pi/lambda</span> <span class="value" id="kValue">1.57 rad/m</span></div>
-                <div><span>lambda</span> <span class="value">4.0 m</span></div>
+                <div><span>lambda</span> <span class="value" id="lambdaValue">4.0 m</span></div>
                 <div><span>N² (Puntos)</span> <span class="value" id="pointsValue">2,500 pts</span></div>
-                <div><span>Modo activo</span> <span class="value" id="currentModeLabel">MOVIMIENTO</span></div>
+                <div><span>Modo activo</span> <span class="value" id="currentModeLabel">ONDA + ROTACION</span></div>
             </div>
         </section>
 
