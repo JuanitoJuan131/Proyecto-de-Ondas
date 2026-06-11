@@ -1,5 +1,5 @@
 let scene, camera, renderer, controls;
-let waveSurface, waveGeometry;
+let waveSurface, waveWireframe, waveGeometry;
 let fieldVectorGroup;
 let electricFieldArrows = [];
 let magneticFieldArrows = [];
@@ -22,7 +22,7 @@ let colorPositive = new THREE.Color(0xff2200);
 let colorNegative = new THREE.Color(0x0044ff);
 let colorNeutral = new THREE.Color(0x00ffff);
 let saturation = 1.0;
-let opacityLevel = 0.85;
+let opacityLevel = 1.0;
 
 const defaultColors = {
     positive: new THREE.Color(0xff2200),
@@ -239,6 +239,10 @@ function updateColorPreview() {
 function createWaveGrid(N) {
     if (waveSurface) {
         scene.remove(waveSurface);
+        if (waveWireframe) {
+            scene.remove(waveWireframe);
+            waveWireframe.material.dispose();
+        }
         waveGeometry.dispose();
         waveSurface.material.dispose();
     }
@@ -284,14 +288,26 @@ function createWaveGrid(N) {
 
     const material = new THREE.MeshBasicMaterial({
         vertexColors: true,
-        transparent: true,
+        transparent: opacityLevel < 1,
         opacity: opacityLevel,
         side: THREE.DoubleSide,
-        depthWrite: false
+        depthWrite: opacityLevel >= 0.98
     });
 
     waveSurface = new THREE.Mesh(waveGeometry, material);
     scene.add(waveSurface);
+
+    waveWireframe = new THREE.Mesh(
+        waveGeometry,
+        new THREE.MeshBasicMaterial({
+            color: 0xdffcff,
+            wireframe: true,
+            transparent: true,
+            opacity: 0.16,
+            depthWrite: false
+        })
+    );
+    scene.add(waveWireframe);
     gridSize = N;
 }
 
@@ -340,6 +356,7 @@ function updateWave(time) {
 
     waveGeometry.attributes.position.needsUpdate = true;
     waveGeometry.attributes.color.needsUpdate = true;
+
 }
 
 function checkMouseIntersection() {
@@ -503,7 +520,10 @@ function setupUI() {
         opacityLevel = parseFloat(e.target.value) / 100;
         document.getElementById('opacityValue').textContent = e.target.value + '%';
         if (waveSurface && waveSurface.material) {
+            waveSurface.material.transparent = opacityLevel < 1;
             waveSurface.material.opacity = opacityLevel;
+            waveSurface.material.depthWrite = opacityLevel >= 0.98;
+            waveSurface.material.needsUpdate = true;
         }
     });
 
@@ -512,19 +532,22 @@ function setupUI() {
         colorNegative.copy(defaultColors.negative);
         colorNeutral.copy(defaultColors.neutral);
         saturation = 1.0;
-        opacityLevel = 0.85;
+        opacityLevel = 1.0;
 
         positiveColorInput.value = '#ff2200';
         negativeColorInput.value = '#0044ff';
         saturationSlider.value = 100;
-        opacitySlider.value = 85;
+        opacitySlider.value = 100;
 
         document.getElementById('saturationValue').textContent = '100%';
-        document.getElementById('opacityValue').textContent = '85%';
+        document.getElementById('opacityValue').textContent = '100%';
         updateColorPreview();
 
         if (waveSurface && waveSurface.material) {
+            waveSurface.material.transparent = false;
             waveSurface.material.opacity = opacityLevel;
+            waveSurface.material.depthWrite = true;
+            waveSurface.material.needsUpdate = true;
         }
 
         document.querySelectorAll('.preset-btn').forEach(btn => btn.classList.remove('active'));
@@ -600,6 +623,7 @@ function setupUI() {
         formulaSource = "A*cos(k*x - w*t)";
         compiledFormula = compileFormula(formulaSource);
         gridSize = 96;
+        opacityLevel = 1.0;
         isMoving = true;
         accumulatedTime = 0;
         controls.autoRotate = true;
@@ -612,6 +636,7 @@ function setupUI() {
         frequencySlider.value = 1.5;
         wavelengthSlider.value = 4.0;
         resolutionSlider.value = 96;
+        opacitySlider.value = 100;
 
         document.getElementById('ampValue').textContent = '0.8';
         document.getElementById('freqValue').textContent = '1.5';
@@ -620,6 +645,7 @@ function setupUI() {
         document.getElementById('kValue').textContent = getWaveNumber().toFixed(2) + " rad/m";
         document.getElementById('resValue').textContent = '96';
         document.getElementById('pointsValue').textContent = '9,216 vtx';
+        document.getElementById('opacityValue').textContent = '100%';
 
         wavePlayBtn.classList.add('active');
         wavePauseBtn.classList.remove('active');
